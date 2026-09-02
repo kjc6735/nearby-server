@@ -6,5 +6,4 @@ export class PrismaService implements OnModuleDestroy{
   onModuleDestroy() {
     db.close();
   }
-  
 }
