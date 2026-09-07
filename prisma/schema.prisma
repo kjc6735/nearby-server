@@ -1,0 +1,93 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TripPostStatus {
+  OPEN
+  CLOSED
+  CANCELLED
+}
+
+model User {
+  id             Int             @id @default(autoincrement())
+  email          String          @unique
+  username       String?
+  name           String?
+  password       String?
+  tripPost       TripPost[]
+  participations Participation[]
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+}
+
+model Category {
+  id           Int                @id @default(autoincrement())
+  slug         String             @unique
+  name         String
+  displayOrder Int                @default(0)
+  isActive     Boolean            @default(true)
+  createdAt    DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @db.Timestamptz(6)
+  deletedAt    DateTime?          @db.Timestamptz(6)
+  tripPosts    TripPostCategory[]
+}
+
+model TripPostCategory {
+  tripPostId Int
+  tripPost   TripPost @relation(fields: [tripPostId], references: [id], onDelete: Cascade)
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([tripPostId, categoryId])
+}
+
+model TripPost {
+  id             Int                @id @default(autoincrement())
+  title          String
+  content        String?
+  placeName      String?
+  capacity       Int
+  status         TripPostStatus     @default(OPEN)
+  author         User               @relation(fields: [authorId], references: [id])
+  authorId       Int
+  meetAt         DateTime           @db.Timestamptz(6)
+  lat            Float
+  lng            Float
+  createdAt      DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(6)
+  deletedAt      DateTime?          @db.Timestamptz(6)
+  participations Participation[]
+  categories     TripPostCategory[]
+  chatRoom       ChatRoom?
+}
+
+model Participation {
+  id         Int      @id @default(autoincrement())
+  tripPostId Int
+  tripPost   TripPost @relation(fields: [tripPostId], references: [id])
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([tripPostId, userId])
+  @@index([userId])
+}
+
+model ChatRoom {
+  id         Int      @id @default(autoincrement())
+  tripPostId Int      @unique
+  tripPost   TripPost @relation(fields: [tripPostId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+}
+
+// TODO: 채팅 메세지
+// model Message {
+// }
