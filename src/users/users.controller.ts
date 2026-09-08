@@ -1,6 +1,7 @@
-import { Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch } from '@nestjs/common';
 import type { AuthPayload } from '../auth/common/auth.payload';
 import { CurrentUser } from '../auth/common/current-user.decorator';
+import { UpdateUserRequestDto } from './dto/update-user.request.dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -13,14 +14,19 @@ export class UsersController {
     @CurrentUser() currentUser: AuthPayload
   ) {
     const { sub: id } = currentUser;
-    const user = await this.userService.findOne({id});
     
+    return this.userService.getMyProfile({id});
   }
 
-  @Post('me')
+  @Patch('me')
   async updateMyProfile(
-    @CurrentUser() currentUser: AuthPayload
+    @CurrentUser() currentUser: AuthPayload,
+    @Body() updateUserRequestDto: UpdateUserRequestDto
   ){
-
+    const { sub: id } = currentUser;
+    return this.userService.updateMyProfile({
+      unique: {id},
+      userUpdateInput: {...updateUserRequestDto}
+    });
   }
 }
