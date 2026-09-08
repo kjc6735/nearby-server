@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { UserCreateInput, UserUpdateInput, UserWhereUniqueInput } from '../generated/prisma/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserDto } from './dto/user.dto';
@@ -14,7 +14,7 @@ export class UsersService {
     unique: UserWhereUniqueInput
   ): Promise<UserDto> {
     const user = await this.findOne(unique);
-    if(!user) throw new BadRequestException("정보를 다시 확인해주세요.");
+    if(!user) throw new NotFoundException("사용자를 찾을 수 없습니다.");
 
     return UserDto.from(user);
   }
@@ -31,7 +31,7 @@ export class UsersService {
     }
   ): Promise<UserDto> {
     const user = await this.findOne(unique);
-    if(!user) throw new BadRequestException("정보를 다시 확인해주세요.");
+    if(!user) throw new NotFoundException("사용자를 찾을 수 없습니다.");
 
     const updateduser = await this.update(unique, userUpdateInput);
     
