@@ -5,13 +5,14 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: process.env.NODE_ENV === 'dev' ? '.env.dev' : '.env',
     }),
-    PrismaModule, UsersModule, AuthModule ],
+    PrismaModule, UsersModule, AuthModule, CategoriesModule ],
   controllers: [AppController],
   providers: [AppService],
 })
