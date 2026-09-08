@@ -86,5 +86,4 @@ export class AuthService {
     await this.usersService.create({ ...data,  password: hashed });
   }
 
-
 }
