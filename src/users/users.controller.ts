@@ -6,27 +6,23 @@ import { UsersService } from './users.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(
-    private readonly userService: UsersService
-  ){}
+  constructor(private readonly userService: UsersService) {}
   @Get('me')
-  async getMe(
-    @CurrentUser() currentUser: AuthPayload
-  ) {
+  async getMe(@CurrentUser() currentUser: AuthPayload) {
     const { sub: id } = currentUser;
-    
-    return this.userService.getMyProfile({id});
+
+    return this.userService.getMyProfile({ id });
   }
 
   @Patch('me')
   async updateMyProfile(
     @CurrentUser() currentUser: AuthPayload,
-    @Body() updateUserRequestDto: UpdateUserRequestDto
-  ){
+    @Body() updateUserRequestDto: UpdateUserRequestDto,
+  ) {
     const { sub: id } = currentUser;
     return this.userService.updateMyProfile({
-      unique: {id},
-      userUpdateInput: {...updateUserRequestDto}
+      unique: { id },
+      userUpdateInput: { ...updateUserRequestDto },
     });
   }
 }

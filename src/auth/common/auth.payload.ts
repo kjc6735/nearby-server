@@ -1,6 +1,6 @@
-import { User } from "../../generated/prisma/client";
+import { User } from '../../generated/prisma/client';
 
 export type AuthPayload = {
-  sub: User["id"];
-  email: User["email"];
-}
+  sub: User['id'];
+  email: User['email'];
+};
