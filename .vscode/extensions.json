@@ -1,0 +1,22 @@
+{
+  "recommendations": [
+    "prisma.prisma",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "orta.vscode-jest"
+  ],
+  "unwantedRecommendations": [
+    "redhat.java",
+    "vscjava.vscode-java-pack",
+    "vmware.vscode-boot-dev-pack",
+    "vmware.vscode-spring-boot",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "golang.go",
+    "dart-code.dart-code",
+    "dart-code.flutter",
+    "amazonwebservices.amazon-q-vscode",
+    "amazonwebservices.aws-toolkit-vscode",
+    "openai.chatgpt"
+  ]
+}
