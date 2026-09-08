@@ -24,11 +24,12 @@ export class UsersService {
       unique, userUpdateInput
     }: {
       unique: UserWhereUniqueInput,
-      userUpdateInput: UserUpdateInput
+      userUpdateInput: {
+        name: string;
+        username: string;
+      }
     }
-  ){
-
-
+  ): Promise<UserDto> {
     const user = await this.findOne(unique);
     if(!user) throw new BadRequestException("정보를 다시 확인해주세요.");
 
