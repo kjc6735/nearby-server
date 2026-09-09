@@ -6,13 +6,14 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { CategoriesModule } from './categories/categories.module';
+import { TripPostModule } from './trip-post/trip-post.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: process.env.NODE_ENV === 'dev' ? '.env.dev' : '.env',
     }),
-    PrismaModule, UsersModule, AuthModule, CategoriesModule ],
+    PrismaModule, UsersModule, AuthModule, CategoriesModule, TripPostModule ],
   controllers: [AppController],
   providers: [AppService],
 })
