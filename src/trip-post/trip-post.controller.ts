@@ -27,6 +27,11 @@ export class TripPostController {
     return this.tripPostService.getTripPosts({ getTripPostsRequestDto });
   }
 
+  @Get(':id')
+  async getTripPost(@Param('id', ParseIntPipe) id: number) {
+    return this.tripPostService.getTripPost({ id });
+  }
+
   @Post()
   async create(
     @CurrentUser() currentUser: AuthPayload,

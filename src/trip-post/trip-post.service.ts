@@ -32,6 +32,16 @@ export class TripPostService {
   ) {}
 
   // query
+  async getTripPost({ id }: { id: number }): Promise<TripPostDto> {
+    const tripPost = await this.findOne({ where: { id } });
+
+    if (!tripPost) {
+      throw new NotFoundException('존재하지 않는 동행 글입니다.');
+    }
+
+    return TripPostDto.from(tripPost);
+  }
+
   async getTripPosts({
     getTripPostsRequestDto,
   }: {
@@ -109,6 +119,17 @@ export class TripPostService {
   }
 
   // core
+  /**
+   * 소프트 삭제된 글은 없는 것으로 취급해야 해서 findUnique 대신 findFirst를
+   * 쓴다. findUnique는 where에 deletedAt 같은 비유니크 조건을 못 받는다.
+   */
+  async findOne({ where }: { where: TripPostWhereUniqueInput }) {
+    return this.prismaService.tripPost.findFirst({
+      where: { ...where, deletedAt: null },
+      include: TRIP_POST_INCLUDE,
+    });
+  }
+
   async findMany({ take, cursor }: { take: number; cursor?: number }) {
     return this.prismaService.tripPost.findMany({
       where: { deletedAt: null },
