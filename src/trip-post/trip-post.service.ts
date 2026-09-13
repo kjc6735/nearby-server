@@ -157,10 +157,12 @@ export class TripPostService {
       where,
       data: {
         ...data,
-        categories: {
-          deleteMany: {},
-          create: categoryIds.map((categoryId) => ({ categoryId })),
-        },
+        ...(categoryIds && {
+          categories: {
+            deleteMany: {},
+            create: categoryIds.map((categoryId) => ({ categoryId })),
+          },
+        }),
       },
       include: TRIP_POST_INCLUDE,
     });
