@@ -7,13 +7,14 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { CategoriesModule } from './categories/categories.module';
 import { TripPostModule } from './trip-post/trip-post.module';
+import { ParticipationsModule } from './participations/participations.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: process.env.NODE_ENV === 'dev' ? '.env.dev' : '.env',
     }),
-    PrismaModule, UsersModule, AuthModule, CategoriesModule, TripPostModule ],
+    PrismaModule, UsersModule, AuthModule, CategoriesModule, TripPostModule, ParticipationsModule ],
   controllers: [AppController],
   providers: [AppService],
 })

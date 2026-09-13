@@ -1,3 +1,4 @@
+import { TripPostStatus } from '../../generated/prisma/enums';
 import { TripPostWhereUniqueInput } from '../../generated/prisma/models';
 
 type TripPostWritableFields = {
@@ -15,7 +16,8 @@ export type CreateTripPostInput = TripPostWritableFields & {
   categoryIds: number[];
 };
 
-export type UpdateTripPostInput = TripPostWritableFields & {
+export type UpdateTripPostInput = Partial<TripPostWritableFields> & {
   where: TripPostWhereUniqueInput;
-  categoryIds: number[];
+  status?: TripPostStatus;
+  categoryIds?: number[];
 };
