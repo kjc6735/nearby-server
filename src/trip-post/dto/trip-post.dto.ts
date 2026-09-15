@@ -1,11 +1,16 @@
 import { CategoryDto } from '../../categories/dto/category.dto';
 import { Category, TripPost, User } from '../../generated/prisma/client';
 import { TripPostStatus } from '../../generated/prisma/enums';
+import {
+  ParticipationDto,
+  ParticipationWithUser,
+} from '../../participations/dto/participation.dto';
 import { TripPostAuthorDto } from './trip-post-author.dto';
 
-export type TripPostWithRelations = TripPost & {
+export type TripPostDtoSource = TripPost & {
   author: User;
-  categories: { category: Category }[];
+  categories?: { category: Category }[];
+  participations?: ParticipationWithUser[];
 };
 
 export class TripPostDto {
@@ -20,13 +25,20 @@ export class TripPostDto {
     private meetAt: Date,
     private lat: number,
     private lng: number,
-    private categories: CategoryDto[],
+    private categories?: CategoryDto[],
+    private participations?: ParticipationDto[],
   ) {}
 
-  static from(tripPost: TripPostWithRelations) {
-    const categories = CategoryDto.fromMany(
-      tripPost.categories.map(({ category }) => category),
-    );
+  static from(tripPost: TripPostDtoSource) {
+    const categories = tripPost.categories
+      ? CategoryDto.fromMany(
+          tripPost.categories.map(({ category }) => category),
+        )
+      : undefined;
+
+    const participations = tripPost.participations
+      ? ParticipationDto.fromMany(tripPost.participations)
+      : undefined;
 
     return new TripPostDto(
       tripPost.id,
@@ -40,10 +52,11 @@ export class TripPostDto {
       tripPost.lat,
       tripPost.lng,
       categories,
+      participations,
     );
   }
 
-  static fromMany(tripPosts: TripPostWithRelations[]) {
+  static fromMany(tripPosts: TripPostDtoSource[]) {
     return tripPosts.map((tripPost) => TripPostDto.from(tripPost));
   }
 }

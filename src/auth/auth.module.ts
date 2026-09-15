@@ -8,42 +8,44 @@ import { AuthService } from './auth.service';
 import { AuthGuard } from './guard/auth.guard';
 
 @Module({
-  imports:[
-    UsersModule,
-    JwtModule.register({}),
-  ],
+  imports: [UsersModule, JwtModule.register({})],
   providers: [
-    AuthService, 
+    AuthService,
     {
-      provide: "SALT_OR_ROUND",
+      provide: 'SALT_OR_ROUND',
       inject: [ConfigService],
-      async useFactory(configService: ConfigService) {
-        const result =  await configService.getOrThrow<number>('SALT_OR_ROUND')      
-        return Number(result)
+      useFactory(configService: ConfigService) {
+        const result = configService.getOrThrow<number>('SALT_OR_ROUND');
+        return Number(result);
       },
     },
     {
-      provide: "JWT_CONFIG",
+      provide: 'JWT_CONFIG',
       inject: [ConfigService],
-      async useFactory(configService: ConfigService) {
-        const accessTokenSecret = await configService.getOrThrow("JWT_ACCESS_SECRET");
-        const refreshTokenSecret = await configService.getOrThrow("JWT_REFRESH_SECRET");
-        const accessRoate = await configService.getOrThrow("JWT_ACCESS_ROTATE"); 
-        const refreshRotate = await configService.getOrThrow("JWT_REFRESH_ROTATE"); 
+      useFactory(configService: ConfigService) {
+        const accessTokenSecret =
+          configService.getOrThrow<string>('JWT_ACCESS_SECRET');
+        const refreshTokenSecret =
+          configService.getOrThrow<string>('JWT_REFRESH_SECRET');
+        const accessRoate =
+          configService.getOrThrow<string>('JWT_ACCESS_ROTATE');
+        const refreshRotate =
+          configService.getOrThrow<string>('JWT_REFRESH_ROTATE');
 
         return {
           accessTokenSecret,
           refreshTokenSecret,
           accessRoate,
-          refreshRotate
-        } 
-      }
-    }, {
+          refreshRotate,
+        };
+      },
+    },
+    {
       provide: APP_GUARD,
-      useClass: AuthGuard
-    }
+      useClass: AuthGuard,
+    },
   ],
   controllers: [AuthController],
-  exports: [AuthService]
+  exports: [AuthService],
 })
 export class AuthModule {}
