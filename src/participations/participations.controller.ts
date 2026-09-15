@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   ParseIntPipe,
   Patch,
@@ -15,6 +16,17 @@ import { ParticipationsService } from './participations.service';
 @Controller('trip-posts/:tripPostId/participations')
 export class ParticipationsController {
   constructor(private readonly participationsService: ParticipationsService) {}
+
+  @Get()
+  async getParticipations(
+    @CurrentUser() currentuser: AuthPayload,
+    @Param('tripPostId', ParseIntPipe) tripPostId: number,
+  ) {
+    return this.participationsService.getParticipationsByAuthor({
+      tripPostId,
+      requestUserId: currentuser.sub,
+    });
+  }
 
   @Post('')
   async applyForTripPost(

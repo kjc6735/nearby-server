@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { Prisma } from '../generated/prisma/client';
 import { UsersService } from '../users/users.service';
 import { AuthPayload } from './common/auth.payload';
 import type { JwtConfig } from './dto/jwt.config';
@@ -84,6 +85,17 @@ export class AuthService {
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    await this.usersService.create({ ...data, password: hashed });
+
+    // 동시 가입 요청은 위 조회를 둘 다 통과할 수 있어 unique 위반을 직접 처리
+    try {
+      await this.usersService.create({ ...data, password: hashed });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      )
+        throw new ConflictException('이미 가입된 이메일입니다.');
+      throw e;
+    }
   }
 }

@@ -7,7 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
-import { ParticipationWhereUniqueInput } from '../generated/prisma/models';
+import {
+  ParticipationWhereUniqueInput,
+  TripPostInclude,
+} from '../generated/prisma/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { TripPostService } from '../trip-post/trip-post.service';
 import {
@@ -15,6 +18,7 @@ import {
   TripPostStatus,
 } from './../generated/prisma/enums';
 import { UsersService } from './../users/users.service';
+import { ParticipationDto } from './dto/participation.dto';
 
 @Injectable()
 export class ParticipationsService {
@@ -23,6 +27,34 @@ export class ParticipationsService {
     private readonly userService: UsersService,
     private readonly tripPostService: TripPostService,
   ) {}
+
+  async getParticipationsByAuthor({
+    tripPostId,
+    requestUserId,
+  }: {
+    tripPostId: number;
+    requestUserId: number;
+  }) {
+    const tripPostWithParticipations = await this.tripPostService.findOne({
+      where: {
+        id: tripPostId,
+      },
+      include: {
+        author: true,
+        participations: {
+          include: { user: true },
+        },
+      } satisfies TripPostInclude,
+    });
+
+    if (!tripPostWithParticipations)
+      throw new NotFoundException('존재하지 않는 게시물입니다.');
+    if (tripPostWithParticipations.author.id !== requestUserId)
+      throw new ForbiddenException('해당 게시물 조회 권한이 없습니다.');
+
+    const { participations } = tripPostWithParticipations;
+    return ParticipationDto.fromMany(participations);
+  }
 
   async applyForTripPost({
     userId,
@@ -45,6 +77,19 @@ export class ParticipationsService {
     if (post.status !== TripPostStatus.OPEN) {
       throw new BadRequestException('현재 지원할 수 없습니다.');
     }
+
+    const existing = await this.getParticipation({
+      where: { tripPostId_userId: { tripPostId, userId } },
+    });
+    if (existing?.status === ParticipationStatus.REJECTED) {
+      throw new ForbiddenException(
+        '거절된 게시물에는 다시 지원할 수 없습니다.',
+      );
+    }
+    if (existing) {
+      throw new ConflictException('이미 지원한 게시물입니다.');
+    }
+
     try {
       return await this.create({
         userId,
@@ -86,6 +131,11 @@ export class ParticipationsService {
       throw new NotFoundException('게시물 또는 지원 이력이 없습니다.');
     }
 
+    // 재지원 막기
+    if (myApplication.status === ParticipationStatus.REJECTED) {
+      throw new BadRequestException('거절된 지원은 취소할 수 없습니다.');
+    }
+
     try {
       await this.delete({
         where: {
@@ -93,7 +143,7 @@ export class ParticipationsService {
         },
       });
 
-      // 인원 바뀌면 다시 모집
+      // 인원 바뀌면 모집으로 수정
       if (myApplication.status === ParticipationStatus.APPROVED) {
         const post = await this.tripPostService.findOne({
           where: { id: tripPostId },
@@ -112,7 +162,7 @@ export class ParticipationsService {
     }
   }
 
-  // author의 승인
+  // author에 의한 가입승인
   async changeApplicationStatusByAuthor({
     authorId,
     participationId,
@@ -166,7 +216,7 @@ export class ParticipationsService {
       userApplication.status === ParticipationStatus.APPROVED &&
       status !== ParticipationStatus.APPROVED;
 
-    // 취소된 게시물은 변경도 불가
+    // 취소된 게시물은 변경 불가
     if (post.status === TripPostStatus.CANCELLED)
       throw new BadRequestException('취소된 여행입니다.');
 

@@ -5,7 +5,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CategoriesService } from '../categories/categories.service';
-import { TripPostWhereUniqueInput } from '../generated/prisma/models';
+import { ParticipationStatus, TripPostStatus } from '../generated/prisma/enums';
+import {
+  TripPostInclude,
+  TripPostWhereUniqueInput,
+} from '../generated/prisma/models';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTripPostRequestDto } from './dto/create-trip-post.request.dto';
 import { GetTripPostsRequestDto } from './dto/get-trip-posts.request.dto';
@@ -16,13 +20,13 @@ import {
 } from './dto/trip-post.input.dto';
 import { UpdateTripPostRequestDto } from './dto/update-trip-post.request.dto';
 
-const TRIP_POST_INCLUDE = {
+export const TRIP_POST_INCLUDE = {
   author: true,
   categories: {
     include: { category: true },
     orderBy: { category: { displayOrder: 'asc' } },
   },
-} as const;
+} satisfies TripPostInclude;
 
 @Injectable()
 export class TripPostService {
@@ -96,13 +100,39 @@ export class TripPostService {
       updateTripPostRequestDto;
     const where: TripPostWhereUniqueInput = { id };
 
-    await this.assertAuthor({ where, authorId });
+    const { status: currentStatus } = await this.assertAuthor({
+      where,
+      authorId,
+    });
+
+    if (currentStatus === TripPostStatus.CANCELLED) {
+      throw new BadRequestException('취소된 여행은 수정할 수 없습니다.');
+    }
+
+    // 정원은 작성자 포함
+    const approvedCount = await this.prismaService.participation.count({
+      where: { tripPostId: id, status: ParticipationStatus.APPROVED },
+    });
+    const memberCount = approvedCount + 1;
+
+    if (tripPostInput.capacity < memberCount) {
+      throw new BadRequestException(
+        `현재 참여 인원(${memberCount}명)보다 적게 정원을 설정할 수 없습니다.`,
+      );
+    }
+
+    // 정원이 바뀌면 모집 상태도 다시 계산
+    const status =
+      tripPostInput.capacity === memberCount
+        ? TripPostStatus.CLOSED
+        : TripPostStatus.OPEN;
 
     const categories = await this.resolveCategories(categorySlugs);
 
     const tripPost = await this.update({
       where,
       ...tripPostInput,
+      status,
       content: content ?? null,
       placeName: placeName ?? null,
       categoryIds: categories.map(({ id }) => id),
@@ -123,10 +153,16 @@ export class TripPostService {
    * 소프트 삭제된 글은 없는 것으로 취급해야 해서 findUnique 대신 findFirst를
    * 쓴다. findUnique는 where에 deletedAt 같은 비유니크 조건을 못 받는다.
    */
-  async findOne({ where }: { where: TripPostWhereUniqueInput }) {
+  async findOne<T extends TripPostInclude = typeof TRIP_POST_INCLUDE>({
+    where,
+    include,
+  }: {
+    where: TripPostWhereUniqueInput;
+    include?: T;
+  }) {
     return this.prismaService.tripPost.findFirst({
       where: { ...where, deletedAt: null },
-      include: TRIP_POST_INCLUDE,
+      include: (include ?? TRIP_POST_INCLUDE) as T,
     });
   }
 
@@ -184,7 +220,7 @@ export class TripPostService {
   }) {
     const tripPost = await this.prismaService.tripPost.findFirst({
       where: { ...where, deletedAt: null },
-      select: { authorId: true },
+      select: { authorId: true, status: true },
     });
 
     if (!tripPost) {
@@ -194,6 +230,8 @@ export class TripPostService {
     if (tripPost.authorId !== authorId) {
       throw new ForbiddenException('본인이 작성한 글만 수정할 수 있습니다.');
     }
+
+    return tripPost;
   }
 
   private async resolveCategories(categorySlugs: string[]) {
