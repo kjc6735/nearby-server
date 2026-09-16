@@ -24,9 +24,10 @@ export class AuthService {
       email,
     });
 
-    if (!user) throw new UnauthorizedException('정보를 다시 확인해주세요.');
+    if (!user?.password)
+      throw new UnauthorizedException('정보를 다시 확인해주세요.');
 
-    const isMatch = await bcrypt.compare(password, user.password!);
+    const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       throw new UnauthorizedException('정보를 다시 확인해주세요.');
@@ -86,7 +87,6 @@ export class AuthService {
 
     const hashed = await bcrypt.hash(password, this.saltOrRounds);
 
-    // 동시 가입 요청은 위 조회를 둘 다 통과할 수 있어 unique 위반을 직접 처리
     try {
       await this.usersService.create({ ...data, password: hashed });
     } catch (e) {

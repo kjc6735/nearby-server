@@ -1,5 +1,3 @@
-
-
 import type { StringValue } from 'ms';
 
 export type JwtConfig = {
@@ -7,4 +5,4 @@ export type JwtConfig = {
   refreshTokenSecret: string;
   accessRoate: StringValue;
   refreshRotate: StringValue;
-}
+};

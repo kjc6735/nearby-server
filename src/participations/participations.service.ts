@@ -117,6 +117,9 @@ export class ParticipationsService {
   }) {
     // 자신인지 확인
     const user = await this.userService.findOne({ id: userId });
+    const post = await this.tripPostService.findOne({
+      where: { id: tripPostId },
+    });
     const myApplication = await this.getParticipation({
       where: {
         id: participationId,
@@ -127,7 +130,8 @@ export class ParticipationsService {
 
     if (!user) throw new NotFoundException('존재하지 않는 사용자입니다.');
 
-    if (!myApplication) {
+    // 소프트 삭제된 글은 findOne이 null을 주므로 없는 글로 취급한다
+    if (!post || !myApplication) {
       throw new NotFoundException('게시물 또는 지원 이력이 없습니다.');
     }
 
@@ -144,18 +148,16 @@ export class ParticipationsService {
       });
 
       // 인원 바뀌면 모집으로 수정
-      if (myApplication.status === ParticipationStatus.APPROVED) {
-        const post = await this.tripPostService.findOne({
+      if (
+        myApplication.status === ParticipationStatus.APPROVED &&
+        post.status === TripPostStatus.CLOSED
+      ) {
+        await this.tripPostService.update({
           where: { id: tripPostId },
+          status: TripPostStatus.OPEN,
         });
-        if (post?.status === TripPostStatus.CLOSED) {
-          await this.tripPostService.update({
-            where: { id: tripPostId },
-            status: TripPostStatus.OPEN,
-          });
-        }
       }
-    } catch (e) {
+    } catch {
       throw new InternalServerErrorException(
         '게시물 가입 신청 삭제가 실패했습니다. 잠시 후 다시 시도해주세요.',
       );
@@ -227,7 +229,7 @@ export class ParticipationsService {
     )
       throw new BadRequestException('대기 중인 지원만 승인할 수 있습니다.');
 
-    // 정원은 작성자 포함
+    // 인원은 작성자 포함
     const memberCount = participations.length + 1;
 
     // 승인할 때만 모집 상태와 인원수 체크
@@ -254,7 +256,7 @@ export class ParticipationsService {
           status: TripPostStatus.OPEN,
         });
       }
-    } catch (e) {
+    } catch {
       throw new InternalServerErrorException(
         '상태 업데이트를 실패했습니다. 잠시 후 다시 시도해주세요.',
       );
