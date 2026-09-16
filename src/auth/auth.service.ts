@@ -16,7 +16,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     @Inject('JWT_CONFIG') private readonly jwtConfig: JwtConfig,
-    @Inject('SALT_OR_ROUND') private readonly saltOrRountd: number,
+    @Inject('SALT_OR_ROUND') private readonly saltOrRounds: number,
   ) {}
 
   async signIn({ email, password }: { email: string; password: string }) {
@@ -84,7 +84,7 @@ export class AuthService {
       throw new ConflictException('이미 가입된 이메일입니다.');
     }
 
-    const hashed = await bcrypt.hash(password, 10);
+    const hashed = await bcrypt.hash(password, this.saltOrRounds);
 
     // 동시 가입 요청은 위 조회를 둘 다 통과할 수 있어 unique 위반을 직접 처리
     try {

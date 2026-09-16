@@ -79,11 +79,26 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "allowJs": true,
+            "module": "commonjs",
+            "moduleResolution": "node"
+          }
+        }
+      ]
     },
+    "transformIgnorePatterns": [
+      "node_modules/(?!@nestjs/jwt/)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   }
