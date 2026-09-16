@@ -10,11 +10,18 @@ import { TripPostModule } from './trip-post/trip-post.module';
 import { ParticipationsModule } from './participations/participations.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({
+  imports: [
+    ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: process.env.NODE_ENV === 'dev' ? '.env.dev' : '.env',
     }),
-    PrismaModule, UsersModule, AuthModule, CategoriesModule, TripPostModule, ParticipationsModule ],
+    PrismaModule,
+    UsersModule,
+    AuthModule,
+    CategoriesModule,
+    TripPostModule,
+    ParticipationsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
