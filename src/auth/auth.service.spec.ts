@@ -121,6 +121,16 @@ describe('AuthService', () => {
       expect(jwtService.signAsync).not.toHaveBeenCalled();
     });
 
+    it('비밀번호가 없는 계정이면 bcrypt를 호출하지 않고 UnauthorizedException을 던진다', async () => {
+      usersService.findOne.mockResolvedValue(createUser({ password: null }));
+
+      await expect(
+        service.signIn({ email: 'user@example.com', password: 'pw' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(bcryptMock.compare).not.toHaveBeenCalled();
+      expect(jwtService.signAsync).not.toHaveBeenCalled();
+    });
+
     it('없는 이메일과 틀린 비밀번호의 메시지가 같아야 계정 존재 여부가 드러나지 않는다', async () => {
       usersService.findOne.mockResolvedValue(null);
       const notFound = await service
@@ -133,7 +143,13 @@ describe('AuthService', () => {
         .signIn({ email: 'user@example.com', password: 'wrong' })
         .catch((e: Error) => e.message);
 
+      usersService.findOne.mockResolvedValue(createUser({ password: null }));
+      const noPassword = await service
+        .signIn({ email: 'user@example.com', password: 'pw' })
+        .catch((e: Error) => e.message);
+
       expect(notFound).toBe(wrongPassword);
+      expect(noPassword).toBe(wrongPassword);
     });
   });
 
