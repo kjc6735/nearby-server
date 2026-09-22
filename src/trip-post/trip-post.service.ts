@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { CategoriesService } from '../categories/categories.service';
+import { Prisma } from '../generated/prisma/client';
 import { ParticipationStatus, TripPostStatus } from '../generated/prisma/enums';
 import {
   TripPostInclude,
@@ -19,6 +20,15 @@ import {
   UpdateTripPostInput,
 } from './dto/trip-post.input.dto';
 import { UpdateTripPostRequestDto } from './dto/update-trip-post.request.dto';
+
+export const EARTH_RADIUS_KM = 6371;
+
+function parseCursor(cursor?: string) {
+  if (!cursor) return undefined;
+
+  const [distanceKm, id] = cursor.split(':');
+  return { distanceKm: Number(distanceKm), id: Number(id) };
+}
 
 export const TRIP_POST_INCLUDE = {
   author: true,
@@ -51,16 +61,25 @@ export class TripPostService {
   }: {
     getTripPostsRequestDto: GetTripPostsRequestDto;
   }) {
-    const { limit, cursor } = getTripPostsRequestDto;
+    const { limit, cursor, lat, lng, range } = getTripPostsRequestDto;
 
-    const tripPosts = await this.findMany({ take: limit + 1, cursor });
+    const nearby = await this.findNearbyIds({
+      lat,
+      lng,
+      range,
+      take: limit + 1,
+      cursor: parseCursor(cursor),
+    });
 
-    const hasNext = tripPosts.length > limit;
-    const items = hasNext ? tripPosts.slice(0, limit) : tripPosts;
+    const hasNext = nearby.length > limit;
+    const page = hasNext ? nearby.slice(0, limit) : nearby;
+
+    const tripPosts = await this.findManyByIds(page.map(({ id }) => id));
+    const last = page.at(-1);
 
     return {
-      items: TripPostDto.fromMany(items),
-      nextCursor: hasNext ? items[items.length - 1].id : null,
+      items: TripPostDto.fromMany(tripPosts),
+      nextCursor: hasNext && last ? `${last.distanceKm}:${last.id}` : null,
     };
   }
 
@@ -166,14 +185,56 @@ export class TripPostService {
     });
   }
 
-  async findMany({ take, cursor }: { take: number; cursor?: number }) {
-    return this.prismaService.tripPost.findMany({
-      where: { deletedAt: null },
-      orderBy: { id: 'desc' },
-      take,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+  async findNearbyIds({
+    lat,
+    lng,
+    range,
+    take,
+    cursor,
+  }: {
+    lat: number;
+    lng: number;
+    range: number;
+    take: number;
+    cursor?: { distanceKm: number; id: number };
+  }) {
+    const distance = Prisma.sql`(
+      ${EARTH_RADIUS_KM} * acos(LEAST(1, GREATEST(-1,
+        cos(radians(${lat})) * cos(radians("lat")) *
+        cos(radians("lng") - radians(${lng})) +
+        sin(radians(${lat})) * sin(radians("lat"))
+      )))
+    )`;
+
+    const afterCursor = cursor
+      ? Prisma.sql`AND (${distance}, "id") > (${cursor.distanceKm}, ${cursor.id})`
+      : Prisma.empty;
+
+    return this.prismaService.$queryRaw<{ id: number; distanceKm: number }[]>(
+      Prisma.sql`
+        SELECT "id", ${distance} AS "distanceKm"
+        FROM "TripPost"
+        WHERE "deletedAt" IS NULL
+          AND ${distance} <= ${range}
+          ${afterCursor}
+        ORDER BY "distanceKm" ASC, "id" ASC
+        LIMIT ${take}
+      `,
+    );
+  }
+
+  async findManyByIds(ids: number[]) {
+    if (ids.length === 0) return [];
+
+    const tripPosts = await this.prismaService.tripPost.findMany({
+      where: { id: { in: ids } },
       include: TRIP_POST_INCLUDE,
     });
+
+    const byId = new Map(tripPosts.map((tripPost) => [tripPost.id, tripPost]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((tripPost) => tripPost !== undefined);
   }
 
   async create({ categoryIds, ...data }: CreateTripPostInput) {

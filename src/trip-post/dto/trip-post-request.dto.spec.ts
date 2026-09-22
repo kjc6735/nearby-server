@@ -211,14 +211,14 @@ describe('GetTripPostsRequestDto', () => {
       lng: '127.0',
       limit: '10',
       range: '2.5',
-      cursor: '30',
+      cursor: '3.421:15832',
     });
 
     expect(result.lat).toBe(37.5);
     expect(result.lng).toBe(127.0);
     expect(result.limit).toBe(10);
     expect(result.range).toBe(2.5);
-    expect(result.cursor).toBe(30);
+    expect(result.cursor).toBe('3.421:15832');
   });
 
   it('limit과 range를 생략하면 기본값이 들어간다', async () => {
@@ -272,14 +272,35 @@ describe('GetTripPostsRequestDto', () => {
     ).resolves.not.toEqual([]);
   });
 
-  it('cursor는 1 이상의 정수만 허용한다', async () => {
-    await expect(
-      messagesOf(
-        GetTripPostsRequestDto,
-        { lat: '37.5', lng: '127.0', cursor: '0' },
-        'query',
-      ),
-    ).resolves.not.toEqual([]);
+  it('cursor는 "거리:id" 형식만 허용한다', async () => {
+    for (const cursor of ['3.421:15832', '0:1', '12:5', '1.23e-7:15']) {
+      await expect(
+        messagesOf(
+          GetTripPostsRequestDto,
+          { lat: '37.5', lng: '127.0', cursor },
+          'query',
+        ),
+      ).resolves.toEqual([]);
+    }
+
+    for (const cursor of [
+      '15832',
+      'abc:1',
+      '3.4:',
+      ':1',
+      '-1.2:3',
+      '1.2:3.5',
+      '1e+21:3',
+      '1e-:3',
+    ]) {
+      await expect(
+        messagesOf(
+          GetTripPostsRequestDto,
+          { lat: '37.5', lng: '127.0', cursor },
+          'query',
+        ),
+      ).resolves.toContain('커서 형식이 올바르지 않습니다.');
+    }
   });
 
   it('정의되지 않은 쿼리는 거부한다', async () => {
