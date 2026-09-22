@@ -1,0 +1,178 @@
+# 부하테스트용 구성.
+#
+# 서버와 DB를 컨테이너로 격리하고 CPU·메모리를 고정해, "이 사양에서 얼마나
+# 버티는가"를 재현 가능하게 측정한다. 부하 생성기(k6)는 대상과 자원을 다투지
+# 않도록 호스트에서 네이티브로 돌리는 것을 기본으로 하고, k6 서비스는
+# 컨테이너로 돌리고 싶을 때만 `--profile loadgen`으로 켠다.
+#
+#   docker compose up -d --build        # postgres + app + influxdb + grafana
+#   k6 run --out influxdb=http://localhost:8086/k6 -e PROFILE=load k6/test.js
+#   docker stats                        # 컨테이너별 CPU·메모리
+#
+# 자원 상한을 바꿔가며(APP_CPUS=1,2,4) 돌리면 CPU를 늘릴 때 처리량이 얼마나
+# 느는지 볼 수 있다.
+
+networks:
+  backend:
+  k6:
+  grafana:
+  metrics:
+
+volumes:
+  pgdata:
+  prometheus-data:
+
+services:
+  postgres:
+    image: postgres:15
+    networks:
+      - backend
+      - metrics
+    ports:
+      # 호스트 Postgres.app(5432), 다른 프로젝트(5433)와 겹치지 않게 5434로 노출
+      - '${DB_PORT:-5434}:5432'
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-nearby}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-nearby}
+      - POSTGRES_DB=${POSTGRES_DB:-nearby}
+    # 느린 쿼리를 확인하려면 pg_stat_statements가 필요하다
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - max_connections=200
+    cpus: ${DB_CPUS:-2}
+    mem_limit: ${DB_MEMORY:-2g}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-nearby} -d ${POSTGRES_DB:-nearby}']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # 마이그레이션과 시드를 한 번 돌리고 끝나는 일회성 컨테이너.
+  # prisma CLI가 devDependency라서 빌드 단계(builder) 이미지를 쓴다.
+  migrate:
+    build:
+      context: .
+      target: builder
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-nearby}:${POSTGRES_PASSWORD:-nearby}@postgres:5432/${POSTGRES_DB:-nearby}
+    command: sh -c "npx prisma migrate deploy && npm run prisma:seed"
+    restart: 'no'
+
+  app:
+    build:
+      context: .
+      target: runtime
+    networks:
+      - backend
+      - k6
+      - metrics
+    ports:
+      # 호스트 3000을 개발 서버(nest start)가 쓰고 있으면 APP_PORT로 바꾼다
+      - '${APP_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-nearby}:${POSTGRES_PASSWORD:-nearby}@postgres:5432/${POSTGRES_DB:-nearby}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-load-test-access-secret}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-load-test-refresh-secret}
+      - JWT_ACCESS_ROTATE=${JWT_ACCESS_ROTATE:-15m}
+      - JWT_REFRESH_ROTATE=${JWT_REFRESH_ROTATE:-7d}
+      - SALT_OR_ROUND=${SALT_OR_ROUND:-10}
+      # 측정에 로그 비용이 섞이지 않게 한다
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_PRETTY=false
+      - PRISMA_QUERY_LOG=false
+      # bcrypt 등 blocking 작업이 쓰는 스레드 풀. CPU 상한에 맞춘다.
+      - UV_THREADPOOL_SIZE=${UV_THREADPOOL_SIZE:-4}
+    cpus: ${APP_CPUS:-2}
+    mem_limit: ${APP_MEMORY:-1g}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/categories').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # DB 지표(커넥션 수, 트랜잭션, 락)를 Prometheus 형식으로 노출
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    networks:
+      - metrics
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-nearby}:${POSTGRES_PASSWORD:-nearby}@postgres:5432/${POSTGRES_DB:-nearby}?sslmode=disable
+      - PG_EXPORTER_EXTEND_QUERY_PATH=
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    networks:
+      - metrics
+      - grafana
+    ports:
+      - '${PROMETHEUS_PORT:-9090}:9090'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+
+  influxdb:
+    image: influxdb:1.8
+    networks:
+      - k6
+      - grafana
+    ports:
+      - '8086:8086'
+    environment:
+      - INFLUXDB_DB=k6
+
+  grafana:
+    image: grafana/grafana:9.3.8
+    networks:
+      - grafana
+    ports:
+      # app이 3000을 쓰므로 호스트에서는 3001로 접속
+      - '3001:3000'
+    environment:
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_BASIC_ENABLED=false
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/
+
+  # 기본으로는 뜨지 않는다. 컨테이너로 부하를 걸고 싶을 때만:
+  #   docker compose --profile loadgen run --rm k6
+  k6:
+    image: grafana/k6:latest
+    profiles: ['loadgen']
+    networks:
+      - k6
+    environment:
+      - K6_OUT=influxdb=http://influxdb:8086/k6
+      - BASE_URL=${BASE_URL:-http://app:3000}
+      - PROFILE=${PROFILE:-smoke}
+    volumes:
+      - ./k6:/scripts
+    entrypoint: ['sh', '-c', 'k6 run /scripts/$${K6_SCRIPT:-test.js}']

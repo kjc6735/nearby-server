@@ -1,0 +1,11 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB
+    # k6 대시보드(8eOFZl_vz)가 이 uid를 참조한다
+    uid: 8pjVZ_lDk
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    database: k6
+    isDefault: true

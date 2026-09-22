@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+src/generated
+.git
+.env
+.env.*
+!.env.example
+k6
+grafana
+*.log
+.vscode
+.claude
+.cursor
+.devin
+.agents
