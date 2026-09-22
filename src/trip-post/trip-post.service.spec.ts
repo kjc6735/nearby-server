@@ -100,6 +100,7 @@ describe('TripPostService', () => {
       update: jest.Mock;
     };
     participation: { count: jest.Mock };
+    $queryRaw: jest.Mock;
   };
   let categoriesService: { getCategories: jest.Mock };
 
@@ -112,6 +113,7 @@ describe('TripPostService', () => {
         update: jest.fn(),
       },
       participation: { count: jest.fn() },
+      $queryRaw: jest.fn(),
     };
     categoriesService = { getCategories: jest.fn() };
 
@@ -178,78 +180,94 @@ describe('TripPostService', () => {
   });
 
   describe('getTripPosts', () => {
+    const query = { lat: 37.5, lng: 127.0, range: 5, limit: 2 };
+
     it('limit보다 한 개 더 조회해서 다음 페이지 여부를 판단한다', async () => {
+      const findNearbyIds = jest.spyOn(service, 'findNearbyIds');
+      prisma.$queryRaw.mockResolvedValue([
+        { id: 3, distanceKm: 0.5 },
+        { id: 2, distanceKm: 1.25 },
+        { id: 1, distanceKm: 2 },
+      ]);
       prisma.tripPost.findMany.mockResolvedValue([
         createTripPostRow({ id: 3 }),
         createTripPostRow({ id: 2 }),
-        createTripPostRow({ id: 1 }),
       ]);
 
       const result = await service.getTripPosts({
-        getTripPostsRequestDto: { lat: 37.5, lng: 127.0, range: 5, limit: 2 },
+        getTripPostsRequestDto: query,
       });
 
-      expect(prisma.tripPost.findMany).toHaveBeenCalledWith(
+      expect(findNearbyIds).toHaveBeenCalledWith(
         expect.objectContaining({ take: 3 }),
       );
+      expect(prisma.tripPost.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: [3, 2] } } }),
+      );
       expect(result.items).toHaveLength(2);
-      expect(result.nextCursor).toBe(2);
+      expect(result.nextCursor).toBe('1.25:2');
     });
 
     it('마지막 페이지면 nextCursor가 null이다', async () => {
+      prisma.$queryRaw.mockResolvedValue([{ id: 3, distanceKm: 0.5 }]);
       prisma.tripPost.findMany.mockResolvedValue([
         createTripPostRow({ id: 3 }),
       ]);
 
       const result = await service.getTripPosts({
-        getTripPostsRequestDto: { lat: 37.5, lng: 127.0, range: 5, limit: 2 },
+        getTripPostsRequestDto: query,
       });
 
       expect(result.items).toHaveLength(1);
       expect(result.nextCursor).toBeNull();
     });
 
-    it('결과가 없으면 빈 배열과 null 커서를 반환한다', async () => {
-      prisma.tripPost.findMany.mockResolvedValue([]);
+    it('결과가 없으면 연관 데이터를 조회하지 않고 빈 배열과 null 커서를 반환한다', async () => {
+      prisma.$queryRaw.mockResolvedValue([]);
 
       const result = await service.getTripPosts({
-        getTripPostsRequestDto: { lat: 37.5, lng: 127.0, range: 5, limit: 2 },
+        getTripPostsRequestDto: query,
       });
 
       expect(result).toEqual({ items: [], nextCursor: null });
+      expect(prisma.tripPost.findMany).not.toHaveBeenCalled();
     });
 
-    it('cursor가 있으면 커서 다음부터 조회한다', async () => {
-      prisma.tripPost.findMany.mockResolvedValue([]);
+    it('cursor가 있으면 거리와 id로 풀어서 넘긴다', async () => {
+      const findNearbyIds = jest.spyOn(service, 'findNearbyIds');
+      prisma.$queryRaw.mockResolvedValue([]);
 
       await service.getTripPosts({
-        getTripPostsRequestDto: {
-          lat: 37.5,
-          lng: 127.0,
-          range: 5,
-          limit: 2,
-          cursor: 10,
-        },
+        getTripPostsRequestDto: { ...query, cursor: '3.421:15832' },
       });
 
-      expect(prisma.tripPost.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ cursor: { id: 10 }, skip: 1 }),
-      );
+      expect(findNearbyIds).toHaveBeenCalledWith({
+        lat: 37.5,
+        lng: 127.0,
+        range: 5,
+        take: 3,
+        cursor: { distanceKm: 3.421, id: 15832 },
+      });
     });
 
-    it('삭제된 글을 빼고 최신순으로 조회한다', async () => {
-      prisma.tripPost.findMany.mockResolvedValue([]);
+    it('연관 데이터를 다시 읽어도 가까운 순서를 유지한다', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        { id: 5, distanceKm: 0.1 },
+        { id: 1, distanceKm: 0.2 },
+      ]);
+      prisma.tripPost.findMany.mockResolvedValue([
+        createTripPostRow({ id: 1 }),
+        createTripPostRow({ id: 5 }),
+      ]);
 
-      await service.getTripPosts({
-        getTripPostsRequestDto: { lat: 37.5, lng: 127.0, range: 5, limit: 2 },
+      const result = await service.getTripPosts({
+        getTripPostsRequestDto: query,
       });
 
-      expect(prisma.tripPost.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { deletedAt: null },
-          orderBy: { id: 'desc' },
-        }),
-      );
+      expect(result.items).toEqual([
+        expect.objectContaining({ id: 5 }),
+        expect.objectContaining({ id: 1 }),
+      ]);
     });
   });
 

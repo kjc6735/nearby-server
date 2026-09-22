@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
 import { createLoggerParams } from './logger/logger.config';
+import { MetricsModule } from './metrics/metrics.module';
 import { ParticipationsModule } from './participations/participations.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TripPostModule } from './trip-post/trip-post.module';
@@ -32,6 +33,7 @@ import { UsersModule } from './users/users.module';
     CategoriesModule,
     TripPostModule,
     ParticipationsModule,
+    MetricsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

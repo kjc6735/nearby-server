@@ -5,6 +5,7 @@ import {
   IsLongitude,
   IsNumber,
   IsOptional,
+  Matches,
   Max,
   Min,
 } from 'class-validator';
@@ -37,9 +38,9 @@ export class GetTripPostsRequestDto {
   @IsOptional()
   limit: number = DEFAULT_TRIP_POST_PAGE_SIZE;
 
-  @Min(1)
-  @IsInt()
-  @Type(() => Number)
+  @Matches(/^\d+(\.\d+)?(e-\d+)?:\d+$/, {
+    message: '커서 형식이 올바르지 않습니다.',
+  })
   @IsOptional()
-  cursor?: number;
+  cursor?: string;
 }
