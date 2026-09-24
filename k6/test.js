@@ -6,6 +6,7 @@ import {
   randomCoord,
   randomInt,
   randomItem,
+  rangeKm,
   stagesFor,
   tripPostBody,
 } from './lib/config.js';
@@ -92,10 +93,13 @@ export function browse({ users, postIds }) {
     check(categories, { 'categories 200': (r) => r.status === 200 });
 
     const { lat, lng } = randomCoord();
+    // 반경은 한 번만 뽑아 다음 페이지까지 같은 값을 쓴다.
+    // 페이지마다 반경이 달라지면 결과 집합 자체가 바뀌어 커서 페이지네이션을 잰 게 아니게 된다.
+    const range = rangeKm();
     const list = authRequest(
       user,
       'GET',
-      `/trip-posts?lat=${lat}&lng=${lng}&range=${randomInt(1, 10)}&limit=20`,
+      `/trip-posts?lat=${lat}&lng=${lng}&range=${range}&limit=20`,
       null,
       { tags: { name: 'GET /trip-posts' } },
     );
@@ -107,7 +111,7 @@ export function browse({ users, postIds }) {
       const next = authRequest(
         user,
         'GET',
-        `/trip-posts?lat=${lat}&lng=${lng}&limit=20&cursor=${nextCursor}`,
+        `/trip-posts?lat=${lat}&lng=${lng}&range=${range}&limit=20&cursor=${nextCursor}`,
         null,
         { tags: { name: 'GET /trip-posts' } },
       );

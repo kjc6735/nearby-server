@@ -53,6 +53,22 @@ export function randomCoord() {
   };
 }
 
+// 조회 반경(km). 인덱스가 없는 지금은 반경과 무관하게 전수 스캔이라 비용이 거의 같지만,
+// 인덱스를 넣고 나면 훑는 면적이 반경의 제곱에 비례한다. 반경이 매 요청 달라지면
+// 개선 효과와 그날 뽑힌 반경 분포가 섞여 before/after 비교가 깨지므로,
+// 베이스라인과 개선 후 측정은 `-e RANGE=5`처럼 고정해서 잰다.
+const FIXED_RANGE_KM = __ENV.RANGE ? Number(__ENV.RANGE) : null;
+const RANGE_MIN_KM = Number(__ENV.RANGE_MIN || 1);
+const RANGE_MAX_KM = Number(__ENV.RANGE_MAX || 10);
+
+if (FIXED_RANGE_KM !== null && !(FIXED_RANGE_KM > 0)) {
+  throw new Error(`RANGE는 0보다 큰 숫자여야 합니다: ${__ENV.RANGE}`);
+}
+
+export function rangeKm() {
+  return FIXED_RANGE_KM !== null ? FIXED_RANGE_KM : randomInt(RANGE_MIN_KM, RANGE_MAX_KM);
+}
+
 export function randomCategorySlugs() {
   const shuffled = [...CATEGORY_SLUGS].sort(() => Math.random() - 0.5);
   return shuffled.slice(0, randomInt(1, 3));
